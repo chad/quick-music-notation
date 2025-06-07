@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Music Notation - Basic Example</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    h1 {
+      color: #333;
+    }
+    
+    #notation-preview {
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      margin: 20px 0;
+      background: white;
+    }
+    
+    .controls {
+      margin: 20px 0;
+    }
+    
+    button {
+      padding: 10px 20px;
+      margin-right: 10px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    button:hover {
+      background: #0056b3;
+    }
+    
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .status {
+      margin: 20px 0;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 4px;
+    }
+    
+    .keyboard-guide {
+      margin: 30px 0;
+      padding: 20px;
+      background: #f0f0f0;
+      border-radius: 8px;
+    }
+    
+    .keyboard-guide h3 {
+      margin-top: 0;
+    }
+    
+    .keyboard-guide table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    .keyboard-guide td {
+      padding: 8px;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    .keyboard-guide td:first-child {
+      font-weight: bold;
+      width: 150px;
+    }
+    
+    .fragment-display {
+      margin: 20px 0;
+      padding: 15px;
+      background: #e9ecef;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+    
+    .error {
+      color: #dc3545;
+      padding: 10px;
+      background: #f8d7da;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    
+    .mode-indicator {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-weight: bold;
+      color: white;
+    }
+    
+    .mode-capture { background: #28a745; }
+    .mode-paused { background: #ffc107; color: #333; }
+    .mode-stopped { background: #6c757d; }
+    .mode-chord { background: #17a2b8; }
+    .mode-error { background: #dc3545; }
+  </style>
+  
+  <!-- Include VexFlow for rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
+</head>
+<body>
+  <h1>Real-Time Music Notation Demo</h1>
+  
+  <div class="status">
+    <strong>Mode:</strong> <span id="mode" class="mode-indicator mode-stopped">STOPPED</span>
+    <strong style="margin-left: 20px;">Current Duration:</strong> <span id="duration">quarter</span>
+    <strong style="margin-left: 20px;">Octave:</strong> <span id="octave">4</span>
+  </div>
+  
+  <div class="controls">
+    <button id="startBtn">Start Capture</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <button id="pauseBtn" disabled>Pause</button>
+    <button id="clearBtn">Clear</button>
+    <button id="commitBtn">Commit Fragment</button>
+    <button id="undoBtn">Undo (Ctrl+Z)</button>
+  </div>
+  
+  <div id="notation-preview"></div>
+  
+  <div id="error-display"></div>
+  
+  <div class="fragment-display">
+    <strong>Current Fragment:</strong>
+    <div id="fragment-json">{}</div>
+  </div>
+  
+  <div class="keyboard-guide">
+    <h3>Keyboard Shortcuts</h3>
+    <table>
+      <tr>
+        <td>C, D, E, F, G, A, B</td>
+        <td>Enter notes (current octave)</td>
+      </tr>
+      <tr>
+        <td>Shift + Note</td>
+        <td>Sharp note</td>
+      </tr>
+      <tr>
+        <td>Alt + Note</td>
+        <td>Flat note</td>
+      </tr>
+      <tr>
+        <td>1, 2, 4, 8, 6</td>
+        <td>Whole, Half, Quarter, Eighth, Sixteenth note duration</td>
+      </tr>
+      <tr>
+        <td>Space or R</td>
+        <td>Rest</td>
+      </tr>
+      <tr>
+        <td>↑ / ↓</td>
+        <td>Raise/Lower octave</td>
+      </tr>
+      <tr>
+        <td>0</td>
+        <td>Reset to middle octave (C4)</td>
+      </tr>
+      <tr>
+        <td>.</td>
+        <td>Add dot to note</td>
+      </tr>
+      <tr>
+        <td>Tab</td>
+        <td>Insert bar line</td>
+      </tr>
+      <tr>
+        <td>Ctrl + Note</td>
+        <td>Start chord mode</td>
+      </tr>
+      <tr>
+        <td>Enter</td>
+        <td>Commit fragment / Complete chord</td>
+      </tr>
+      <tr>
+        <td>Backspace</td>
+        <td>Delete last element</td>
+      </tr>
+      <tr>
+        <td>Escape</td>
+        <td>Clear current fragment</td>
+      </tr>
+      <tr>
+        <td>' (apostrophe)</td>
+        <td>Staccato</td>
+      </tr>
+      <tr>
+        <td>> (greater than)</td>
+        <td>Accent</td>
+      </tr>
+    </table>
+  </div>
+
+  <script type="module">
+    // Import the library (in production, this would be from npm)
+    import { NotationCapture } from '/dist/index.esm.js';
+    
+    // Initialize the notation capture system
+    const notationSystem = new NotationCapture({
+      container: '#notation-preview',
+      renderer: 'vexflow',
+      keyMappings: 'default',
+      debug: true,
+      onFragmentCommit: (fragment) => {
+        console.log('Fragment committed:', fragment);
+        alert('Fragment sent! Check console for details.');
+      }
+    });
+    
+    // UI Elements
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const commitBtn = document.getElementById('commitBtn');
+    const undoBtn = document.getElementById('undoBtn');
+    const modeDisplay = document.getElementById('mode');
+    const durationDisplay = document.getElementById('duration');
+    const octaveDisplay = document.getElementById('octave');
+    const fragmentDisplay = document.getElementById('fragment-json');
+    const errorDisplay = document.getElementById('error-display');
+    
+    // Event handlers
+    startBtn.addEventListener('click', () => {
+      notationSystem.start();
+      updateButtons();
+    });
+    
+    stopBtn.addEventListener('click', () => {
+      notationSystem.stop();
+      updateButtons();
+    });
+    
+    pauseBtn.addEventListener('click', () => {
+      if (notationSystem.getMode() === 'PAUSED') {
+        notationSystem.resume();
+        pauseBtn.textContent = 'Pause';
+      } else {
+        notationSystem.pause();
+        pauseBtn.textContent = 'Resume';
+      }
+      updateButtons();
+    });
+    
+    clearBtn.addEventListener('click', () => {
+      notationSystem.clear();
+    });
+    
+    commitBtn.addEventListener('click', () => {
+      notationSystem.commit();
+    });
+    
+    undoBtn.addEventListener('click', () => {
+      notationSystem.undo();
+    });
+    
+    // Listen to notation events
+    notationSystem.on('modeChanged', (event) => {
+      const mode = event.newMode;
+      modeDisplay.textContent = mode;
+      modeDisplay.className = 'mode-indicator mode-' + mode.toLowerCase().replace('_', '-');
+      updateButtons();
+    });
+    
+    notationSystem.on('noteAdded', (event) => {
+      console.log('Note added:', event.note);
+      updateFragmentDisplay();
+    });
+    
+    notationSystem.on('elementDeleted', (event) => {
+      console.log('Element deleted:', event.element);
+      updateFragmentDisplay();
+    });
+    
+    notationSystem.on('fragmentCleared', () => {
+      console.log('Fragment cleared');
+      updateFragmentDisplay();
+    });
+    
+    notationSystem.on('fragmentCommitted', (event) => {
+      console.log('Fragment committed:', event.fragment);
+      updateFragmentDisplay();
+    });
+    
+    notationSystem.on('error', (event) => {
+      console.error('Error:', event.error);
+      showError(event.error.message);
+    });
+    
+    notationSystem.on('previewUpdated', (event) => {
+      updateFragmentDisplay();
+    });
+    
+    // Update button states
+    function updateButtons() {
+      const mode = notationSystem.getMode();
+      
+      startBtn.disabled = mode !== 'STOPPED';
+      stopBtn.disabled = mode === 'STOPPED';
+      pauseBtn.disabled = mode === 'STOPPED' || mode === 'ERROR';
+      
+      if (mode === 'PAUSED') {
+        pauseBtn.textContent = 'Resume';
+      } else {
+        pauseBtn.textContent = 'Pause';
+      }
+    }
+    
+    // Update fragment display
+    function updateFragmentDisplay() {
+      const fragment = notationSystem.getCurrentFragment();
+      fragmentDisplay.textContent = JSON.stringify(fragment, null, 2);
+    }
+    
+    // Show error
+    function showError(message) {
+      errorDisplay.innerHTML = `<div class="error">${message}</div>`;
+      setTimeout(() => {
+        errorDisplay.innerHTML = '';
+      }, 3000);
+    }
+    
+    // Monitor keyboard state (for debugging)
+    document.addEventListener('keydown', (e) => {
+      if (notationSystem.getMode() === 'CAPTURE' || notationSystem.getMode() === 'CHORD_MODE') {
+        // Update duration/octave display based on current state
+        // This is a simplified version - in real implementation, 
+        // we'd expose these from ShortcutEngine
+      }
+    });
+    
+    // Initial state
+    updateButtons();
+    updateFragmentDisplay();
+  </script>
+</body>
+</html>
