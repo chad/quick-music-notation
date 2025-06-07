@@ -47,6 +47,11 @@ export interface PreviewUpdatedEvent {
   renderData?: any;
 }
 
+export interface ModifierChangedEvent {
+  type: 'modifierChanged';
+  modifier: any;
+}
+
 export type NotationEvent = 
   | NoteAddedEvent
   | ElementDeletedEvent
@@ -55,7 +60,8 @@ export type NotationEvent =
   | ModeChangedEvent
   | ErrorEvent
   | KeyMappingChangedEvent
-  | PreviewUpdatedEvent;
+  | PreviewUpdatedEvent
+  | ModifierChangedEvent;
 
 export type InputMode = 
   | 'CAPTURE'

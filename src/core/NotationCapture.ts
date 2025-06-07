@@ -11,7 +11,8 @@ import {
   FragmentClearedEvent,
   FragmentCommittedEvent,
   ErrorEvent,
-  PreviewUpdatedEvent
+  PreviewUpdatedEvent,
+  ModifierChangedEvent
 } from '../types/events';
 import { 
   NotationCaptureOptions
@@ -272,7 +273,11 @@ export class NotationCapture extends EventEmitter {
         break;
       
       case 'modifier':
-        // Modifiers update internal state, just update preview
+        // Modifiers update internal state, emit event and update preview
+        this.emit<ModifierChangedEvent>({
+          type: 'modifierChanged',
+          modifier: processed.data
+        });
         this.updatePreview();
         break;
       
@@ -475,6 +480,10 @@ export class NotationCapture extends EventEmitter {
 
   getCommittedFragments(): MusicalFragment[] {
     return this.fragmentManager.getCommittedFragments();
+  }
+
+  getCurrentState(): any {
+    return this.shortcutEngine.getCurrentState();
   }
 
   destroy(): void {

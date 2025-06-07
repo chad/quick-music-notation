@@ -147,12 +147,16 @@ export class ShortcutEngine {
     if (duration === 'dotted-quarter') {
       this.currentDuration = 'quarter';
       this.isDotted = true;
+      this.isTriplet = false;
     } else if (duration === 'triplet-eighth') {
       this.currentDuration = 'eighth';
       this.isTriplet = true;
+      this.isDotted = false;
     } else {
       this.currentDuration = duration as Duration;
-      // Don't reset dotted/triplet on duration change
+      // Reset dotted/triplet when selecting a regular duration
+      this.isDotted = false;
+      this.isTriplet = false;
     }
 
     return { 

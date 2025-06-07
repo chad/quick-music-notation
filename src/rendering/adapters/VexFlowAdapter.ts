@@ -86,15 +86,31 @@ export class VexFlowAdapter implements RendererAdapter {
 
     if (notes.length === 0) return;
 
-    // Create voice and add notes
+    // Create voice with SOFT mode to allow incomplete measures
     const voice = new Voice({ 
       num_beats: fragment.timeSignature.numerator,
-      beat_value: fragment.timeSignature.denominator 
+      beat_value: fragment.timeSignature.denominator,
+      resolution: Vex.Flow.RESOLUTION
     });
+    
+    // Set voice to SOFT mode to allow incomplete measures
+    voice.setMode(Voice.Mode.SOFT);
     voice.addTickables(notes);
 
     // Format and draw
-    new Formatter().joinVoices([voice]).format([voice], staveWidth - 120);
+    const formatter = new Formatter();
+    // Use preCalculateMinTotalWidth to avoid strict formatting
+    formatter.joinVoices([voice]);
+    
+    try {
+      formatter.format([voice], staveWidth - 120);
+    } catch (e) {
+      // If formatting fails, try with auto-width
+      console.warn('Voice formatting failed, using auto-width:', e);
+      formatter.preCalculateMinTotalWidth([voice]);
+      formatter.format([voice], 0);
+    }
+    
     voice.draw(this.context, this.currentStave);
   }
 
@@ -108,8 +124,11 @@ export class VexFlowAdapter implements RendererAdapter {
       return null;
     }
     
-    const [, noteName, accidental, octave] = pitchMatch;
-    const vexPitch = `${noteName.toLowerCase()}${accidental}/${octave}`;
+    const [, noteName, pitchAccidental, octave] = pitchMatch;
+    // Don't include accidental in the key if we have a separate accidental property
+    // This handles cases where the pitch string already has the accidental
+    const baseNoteName = noteName.toLowerCase();
+    const vexPitch = note.accidental ? `${baseNoteName}/${octave}` : `${baseNoteName}${pitchAccidental}/${octave}`;
     const duration = this.mapDuration(note.duration);
     
     const vexNote = new StaveNote({
@@ -117,11 +136,17 @@ export class VexFlowAdapter implements RendererAdapter {
       duration: duration
     });
 
-    // Add accidental if needed
-    if (note.accidental) {
-      const accidental = note.accidental === 'sharp' ? '#' : 
-                        note.accidental === 'flat' ? 'b' : 'n';
-      vexNote.addAccidental(0, new Vex.Flow.Accidental(accidental));
+    // Add accidental if specified separately from pitch
+    if (note.accidental || pitchAccidental) {
+      const accidentalType = note.accidental ? 
+        (note.accidental === 'sharp' ? '#' : note.accidental === 'flat' ? 'b' : 'n') :
+        pitchAccidental;
+      
+      if (accidentalType && typeof vexNote.addModifier === 'function') {
+        vexNote.addModifier(new Vex.Flow.Accidental(accidentalType), 0);
+      } else if (accidentalType && typeof vexNote.addAccidental === 'function') {
+        vexNote.addAccidental(0, new Vex.Flow.Accidental(accidentalType));
+      }
     }
 
     // Add articulations
@@ -147,7 +172,17 @@ export class VexFlowAdapter implements RendererAdapter {
   private createVexChord(chord: any): any {
     const { StaveNote } = Vex.Flow;
     
-    const keys = chord.pitches.map((p: string) => p.toLowerCase());
+    // Convert pitches to VexFlow format
+    const keys = chord.pitches.map((p: string) => {
+      const pitchMatch = p.match(/^([A-G])([#b]?)(\d)$/);
+      if (!pitchMatch) {
+        console.error('Invalid pitch format in chord:', p);
+        return 'c/4'; // fallback
+      }
+      const [, noteName, accidental, octave] = pitchMatch;
+      return `${noteName.toLowerCase()}${accidental}/${octave}`;
+    });
+    
     const duration = this.mapDuration(chord.duration);
     
     const vexChord = new StaveNote({

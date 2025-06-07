@@ -308,6 +308,12 @@
       updateFragmentDisplay();
     });
     
+    notationSystem.on('modifierChanged', (event) => {
+      const state = notationSystem.getCurrentState();
+      durationDisplay.textContent = state.duration + (state.isDotted ? ' (dotted)' : '') + (state.isTriplet ? ' (triplet)' : '');
+      octaveDisplay.textContent = state.octave;
+    });
+    
     // Update button states
     function updateButtons() {
       const mode = notationSystem.getMode();
@@ -349,6 +355,11 @@
     // Initial state
     updateButtons();
     updateFragmentDisplay();
+    
+    // Set initial duration/octave display
+    const initialState = notationSystem.getCurrentState();
+    durationDisplay.textContent = initialState.duration + (initialState.isDotted ? ' (dotted)' : '') + (initialState.isTriplet ? ' (triplet)' : '');
+    octaveDisplay.textContent = initialState.octave;
   </script>
 </body>
 </html>
