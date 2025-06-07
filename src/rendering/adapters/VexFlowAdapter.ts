@@ -97,6 +97,9 @@ export class VexFlowAdapter implements RendererAdapter {
     voice.setMode(Voice.Mode.SOFT);
     voice.addTickables(notes);
 
+    // Apply automatic beaming BEFORE formatting and drawing
+    const beams = this.createBeams(notes);
+    
     // Format and draw
     const formatter = new Formatter();
     // Use preCalculateMinTotalWidth to avoid strict formatting
@@ -112,6 +115,11 @@ export class VexFlowAdapter implements RendererAdapter {
     }
     
     voice.draw(this.context, this.currentStave);
+    
+    // Draw the beams after drawing the voice
+    for (const beam of beams) {
+      beam.setContext(this.context).draw();
+    }
   }
 
   private createVexNote(note: any): any {
@@ -289,5 +297,81 @@ export class VexFlowAdapter implements RendererAdapter {
 
   isAvailable(): boolean {
     return typeof Vex !== 'undefined' && Vex.Flow !== undefined;
+  }
+
+  private createBeams(notes: any[]): any[] {
+    const beams: any[] = [];
+    
+    // Collect all beamable notes first
+    let beamableNotes: any[] = [];
+    
+    for (let i = 0; i < notes.length; i++) {
+      if (this.isBeamable(notes[i])) {
+        beamableNotes.push({ note: notes[i], index: i });
+      } else if (beamableNotes.length > 0) {
+        // Process accumulated beamable notes when we hit a non-beamable note
+        beams.push(...this.createBeamGroups(beamableNotes));
+        beamableNotes = [];
+      }
+    }
+    
+    // Process any remaining beamable notes
+    if (beamableNotes.length > 0) {
+      beams.push(...this.createBeamGroups(beamableNotes));
+    }
+    
+    return beams;
+  }
+  
+  private createBeamGroups(beamableNotes: Array<{note: any, index: number}>): any[] {
+    const { Beam } = Vex.Flow;
+    const beams: any[] = [];
+    
+    // Group by 4s for sixteenth notes, by 2s for eighth notes
+    let groupSize = 4;
+    if (beamableNotes.length > 0) {
+      const duration = beamableNotes[0].note.getDuration();
+      if (duration.includes('8') && !duration.includes('16')) {
+        groupSize = 2;
+      }
+    }
+    
+    // Create groups
+    for (let i = 0; i < beamableNotes.length; i += groupSize) {
+      const groupEnd = Math.min(i + groupSize, beamableNotes.length);
+      const group = beamableNotes.slice(i, groupEnd);
+      
+      // Only beam if we have at least 2 notes
+      if (group.length >= 2) {
+        // Check if notes are consecutive in the original array
+        let consecutive = true;
+        for (let j = 1; j < group.length; j++) {
+          if (group[j].index !== group[j-1].index + 1) {
+            consecutive = false;
+            break;
+          }
+        }
+        
+        if (consecutive) {
+          const beam = new Beam(group.map(g => g.note));
+          beams.push(beam);
+        }
+      }
+    }
+    
+    return beams;
+  }
+
+  private isBeamable(note: any): boolean {
+    // Check if this is a StaveNote (not a rest) with a beamable duration
+    if (!note || typeof note.getDuration !== 'function') return false;
+    
+    const duration = note.getDuration();
+    // Check if it's a note (not a rest) and has eighth or shorter duration
+    return !duration.includes('r') && 
+           (duration.includes('8') || 
+            duration.includes('16') || 
+            duration.includes('32') || 
+            duration.includes('64'));
   }
 }
