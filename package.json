@@ -1,5 +1,5 @@
 {
-  "name": "realtime-music-notation",
+  "name": "quick-music-notation",
   "version": "1.0.0",
   "description": "Browser-based JavaScript library for real-time music notation input via keyboard shortcuts",
   "main": "dist/index.js",
@@ -10,6 +10,8 @@
     "build": "rollup -c",
     "dev": "rollup -c -w",
     "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "lint": "eslint src/**/*.ts",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build",

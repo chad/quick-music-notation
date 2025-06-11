@@ -55,14 +55,23 @@ export class ShortcutEngine {
       return { type: 'invalid', error: 'Input not accepted in current mode' };
     }
 
-    // Check for control commands first
-    const controlResult = this.processControlCommand(input);
-    if (controlResult) return controlResult;
-
-    // Check for chord mode
+    // Check for chord mode first
     if (mode === 'CHORD_MODE' && !input.ctrlKey) {
       return this.processChordNote(input);
     }
+
+    // Check for note input with Ctrl (chord mode initiation) before other control commands
+    if (input.ctrlKey) {
+      const noteLetter = this.keyMappings.pitches[input.key.toLowerCase()];
+      if (noteLetter) {
+        const noteResult = this.processNoteInput(input);
+        if (noteResult) return noteResult;
+      }
+    }
+
+    // Check for control commands
+    const controlResult = this.processControlCommand(input);
+    if (controlResult) return controlResult;
 
     // Check for duration change
     const durationResult = this.processDurationChange(input);
@@ -216,8 +225,13 @@ export class ShortcutEngine {
   }
 
   private processChordNote(input: KeyboardInput): ProcessedInput {
-    // Check for chord completion
-    if (input.key === 'Enter') {
+    // Check for chord completion with Enter (no Ctrl)
+    if (input.key === 'Enter' && !input.ctrlKey) {
+      return this.completeChord();
+    }
+
+    // Check for chord completion with Ctrl+Enter
+    if (input.key === 'Enter' && input.ctrlKey) {
       return this.completeChord();
     }
 
@@ -243,6 +257,12 @@ export class ShortcutEngine {
         type: 'modifier', 
         data: { chordNotes: [...this.chordNotes] } 
       };
+    }
+
+    // Check for octave changes in chord mode
+    if (input.key === 'ArrowUp' || input.key === 'ArrowDown') {
+      const delta = input.key === 'ArrowUp' ? 1 : -1;
+      return this.changeOctave(delta);
     }
 
     return { type: 'invalid', error: 'Invalid chord note input' };
@@ -336,6 +356,10 @@ export class ShortcutEngine {
     this.currentOctave = 4;
     this.isDotted = false;
     this.isTriplet = false;
+    this.chordNotes = [];
+  }
+
+  clearChordNotes(): void {
     this.chordNotes = [];
   }
 

@@ -124,6 +124,11 @@
     <strong style="margin-left: 20px;">Octave:</strong> <span id="octave">4</span>
   </div>
   
+  <div id="chord-builder" style="display: none; margin: 15px 0; padding: 15px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 4px;">
+    <strong>🎵 Building Chord:</strong> <span id="chord-notes" style="font-size: 18px; margin-left: 10px;">[]</span>
+    <span style="margin-left: 20px; color: #666;">Press more notes to add, Enter to complete</span>
+  </div>
+  
   <div class="controls">
     <button id="startBtn">Start Capture</button>
     <button id="stopBtn" disabled>Stop</button>
@@ -236,16 +241,20 @@
     const octaveDisplay = document.getElementById('octave');
     const fragmentDisplay = document.getElementById('fragment-json');
     const errorDisplay = document.getElementById('error-display');
+    const chordBuilder = document.getElementById('chord-builder');
+    const chordNotesDisplay = document.getElementById('chord-notes');
     
     // Event handlers
     startBtn.addEventListener('click', () => {
       notationSystem.start();
       updateButtons();
+      updateStateDisplay();
     });
     
     stopBtn.addEventListener('click', () => {
       notationSystem.stop();
       updateButtons();
+      updateStateDisplay();
     });
     
     pauseBtn.addEventListener('click', () => {
@@ -276,7 +285,30 @@
       const mode = event.newMode;
       modeDisplay.textContent = mode;
       modeDisplay.className = 'mode-indicator mode-' + mode.toLowerCase().replace('_', '-');
+      
+      // Show/hide chord builder
+      if (mode === 'CHORD_MODE') {
+        chordBuilder.style.display = 'block';
+      } else {
+        chordBuilder.style.display = 'none';
+        chordNotesDisplay.textContent = '[]';
+      }
+      
       updateButtons();
+    });
+    
+    notationSystem.on('modifierChanged', (event) => {
+      if (event.modifier.chordNotes) {
+        console.log('Chord notes:', event.modifier.chordNotes);
+        // Update chord builder display
+        if (event.modifier.chordNotes.length > 0) {
+          chordNotesDisplay.textContent = event.modifier.chordNotes.join(' - ');
+        } else {
+          chordNotesDisplay.textContent = '[]';
+        }
+      }
+      // Update duration/octave display
+      updateStateDisplay();
     });
     
     notationSystem.on('noteAdded', (event) => {
@@ -323,6 +355,13 @@
       }
     }
     
+    // Update state display labels
+    function updateStateDisplay() {
+      const state = notationSystem.getCurrentState();
+      durationDisplay.textContent = state.duration + (state.isDotted ? ' (dotted)' : '') + (state.isTriplet ? ' (triplet)' : '');
+      octaveDisplay.textContent = state.octave;
+    }
+    
     // Update fragment display
     function updateFragmentDisplay() {
       const fragment = notationSystem.getCurrentFragment();
@@ -349,6 +388,7 @@
     // Initial state
     updateButtons();
     updateFragmentDisplay();
+    updateStateDisplay();
   </script>
 </body>
 </html>

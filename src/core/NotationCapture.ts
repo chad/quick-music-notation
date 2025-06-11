@@ -111,7 +111,12 @@ export class NotationCapture extends EventEmitter {
 
     this.changeMode('STOPPED');
     this.detachKeyboardListener();
-    this.clearChordMode();
+    // Clear chord mode but reset entire engine when stopping
+    if (this.chordModeTimer) {
+      clearTimeout(this.chordModeTimer);
+      this.chordModeTimer = null;
+    }
+    this.shortcutEngine.reset();
     this.previewRenderer.clear();
     
     this.debugLog('NotationCapture stopped');
@@ -124,7 +129,10 @@ export class NotationCapture extends EventEmitter {
 
     const previousMode = this.mode;
     this.changeMode('PAUSED');
-    this.clearChordMode();
+    // Exit chord mode if active
+    if (previousMode === 'CHORD_MODE') {
+      this.exitChordMode();
+    }
     
     this.debugLog('NotationCapture paused', { previousMode });
   }
@@ -388,36 +396,19 @@ export class NotationCapture extends EventEmitter {
 
   private enterChordMode(): void {
     this.changeMode('CHORD_MODE');
-    this.startChordModeTimer();
+    // No timer - chord mode only exits on Enter key or clear
   }
 
   private exitChordMode(): void {
-    this.clearChordMode();
-    this.changeMode('CAPTURE');
-  }
-
-  private startChordModeTimer(): void {
-    const behaviorConfig = this.configManager.getBehaviorConfig();
-    
-    this.chordModeTimer = setTimeout(() => {
-      if (this.shortcutEngine.checkChordModeTimeout(behaviorConfig.chordModeTimeout)) {
-        // Force chord completion
-        const processed = this.shortcutEngine.processKeyInput(
-          { key: 'Enter', shiftKey: false, altKey: false, ctrlKey: false, metaKey: false },
-          this.mode
-        );
-        this.handleProcessedInput(processed);
-      }
-    }, behaviorConfig.chordModeTimeout);
-  }
-
-  private clearChordMode(): void {
+    // Clear chord mode without resetting other state
     if (this.chordModeTimer) {
       clearTimeout(this.chordModeTimer);
       this.chordModeTimer = null;
     }
-    this.shortcutEngine.reset();
+    this.shortcutEngine.clearChordNotes();
+    this.changeMode('CAPTURE');
   }
+
 
   private changeMode(newMode: InputMode): void {
     const previousMode = this.mode;
